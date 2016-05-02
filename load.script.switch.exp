@@ -1,0 +1,133 @@
+#!/usr/bin/expect
+#
+# Apply to: QuantaMesh Network OS (QNOS)
+# Build by: QCTUS SWFAE
+# Bulld date: 2016/04/01
+# Purpose: This example download script to switches and apply to running-config
+# 
+
+
+# initial vars (modify it to fit your environment)
+set PATH "/tmp/"
+set term_server_addr ts-01
+#set conport {2016}
+set conport {2005 2007 2012 2013 2014 2015 2016}
+# the script file name in server is $SWITCH.initial.scr (e.g., ly4a.initial.scr)
+#set SWITCH {ly6-2}
+set SWITCH {ly4a lb9 ly2 ly8-1 ly8-2 ly6-1 ly6-2}
+set tftpaddr 10.90.90.254
+set username "admin"
+set password "\r"
+set enablepass "\r"
+
+# vars
+set global_prompt ") #$"
+set config_prompt "Config)#$"
+
+# slow down as console terminal reponse is sloppy 
+set force_slow 1
+if {$force_slow} {
+	set send_slow {1 .07}
+    proc send {arg} {
+		sleep .3
+		exp_send -s -- $arg
+		sleep .3
+	}
+    proc send_user {arg} {
+		sleep .3
+		exp_send_user -s -- $arg
+		sleep .3
+	}
+}
+
+####################SCRIPT START####################
+
+for {set i 0} {$i < [llength $conport]} {incr i 1} {
+# enable logging to file and disable logging stdout
+set consolesession [lindex $conport $i]
+log_file -noappend $PATH/console_$consolesession.log
+log_user 0
+
+####################AUTO LOGIN START####################
+
+proc login {user pass con} {
+	for {set nRetry 1} {$nRetry <= 5} {incr nRetry 1} {
+		expect {
+			-re "(#|>)$" {
+				send "\r"
+				break
+			}	
+			"assword:" {
+				send "$pass"
+			}
+			"User:" {
+				send "$user\r"
+				exp_continue
+			}
+		}
+	}
+
+	if {$nRetry > 5} {
+		send_user "CONSOLE $con: PASSWORD FAILED [expr {$nRetry-1}] TIMES\n"
+#		send_log "CONSOLE $con: PASSWORD FAILED [expr {$nRetry-1}] TIMES\n"
+		exit
+	} else {
+		set htime "\[[clock format [clock seconds] -format {%b-%d-%y %H:%M:%S} -timezone :localtime]\]"
+		send_user "$htime CONSOLE $con: LOGIN SUCCESS\n"
+	}
+}
+
+spawn telnet $term_server_addr $consolesession
+# verify terminal server connected
+expect -re "Connected to port*" {
+	send "\r"
+}
+
+login $username $password $consolesession
+
+# reset to global mode#
+expect {
+	-re ">$" { 
+		send "enable\r" 
+		send "$enablepass" 
+		}
+	-re "#$" { send "end\r" }
+}
+
+####################AUTO LOGIN END####################
+
+expect $global_prompt {send "copy tftp://$tftpaddr/[lindex $SWITCH $i].initial.scr script [lindex $SWITCH $i].initial.scr\r"}
+expect "want to start? (y/n)" {send "y"}
+sleep 1
+expect {
+	"failed!" {
+		send_user "CONSOLE $consolesession: download failed! Script stops.\n"
+		exit
+		}
+	"successfully." {
+		send_user "CONSOLE $consolesession: download succeed!\n"
+		}
+}
+
+expect $global_prompt {send "script apply [lindex $SWITCH $i].initial.scr\r"}
+expect "apply the configuration script? (y/n)" {send "y"}
+expect "save them now? (y/n)" {send "y"}
+sleep 3
+expect {
+	"applied" {
+		send_user "CONSOLE $consolesession: script is applied\n"
+	} timeout {
+		send_user "CONSOLE $consolesession: timeout and exit\n"
+		exit
+	}
+}
+
+expect $global_prompt {send "copy running-config startup-config\r"}
+expect "Configuration Saved!" {send_user "CONSOLE $consolesession: configuration is saved.\n"}
+set htime "\[[clock format [clock seconds] -format {%b-%d-%y %H:%M:%S} -timezone :localtime]\]"
+expect $global_prompt {send_user "$htime CONSOLE $consolesession: TASKS ARE FINISHED.\n"}
+
+# turn off logging
+log_file
+}
+####################SCRIPT END####################
