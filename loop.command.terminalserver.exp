@@ -1,0 +1,73 @@
+#!/usr/bin/expect
+#
+# Apply to: QuantaMesh Network OS (QNOS)
+# Build by: QCTUS SWFAE
+# Bulld date: 2016/05/02
+# Purpose: This example access switch via console and sending commmands every x seconds.
+#
+
+
+# initial vars (modify it to fit your environment)
+set term_server_addr ts-01
+set conport {2016}
+set username "admin"
+set password "\r"
+set enablepass "\r"
+set PATH "/tmp/"
+
+# vars
+set global_prompt ") #$"
+set config_prompt "Config)#$"
+
+####################SCRIPT START####################
+
+for {set i 0} {$i < [llength $conport]} {incr i 1} {
+# enable logging to file and disable logging stdout
+set loginsession [lindex $conport $i]
+log_file -noappend $PATH/session_$loginsession.log
+log_user 1
+
+# put source file in same directory
+source common.exp
+
+####################AUTO LOGIN START####################
+spawn telnet $term_server_addr $loginsession
+# verify terminal server connected
+expect -re "Connected to port*" {
+	send "\r"
+}
+
+con_login $username $password $loginsession
+
+####################AUTO LOGIN END####################
+
+loggedline $loginsession "TASKS START\n"
+#send "configure\r"
+#expect $config_prompt
+
+set true 1;
+set loopcount 0;
+while { $true } {
+   set loopcount [expr {$loopcount + 1}]
+   send_user "run $loopcount times\n"
+   expect $global_prompt {send "show calendar\r"}
+#   expect $global_prompt {send "show startup-config\r"}
+   expect {
+	   "(q)uit" {
+		   send "\r"
+		   exp_continue
+		   }
+		$global_prompt {
+			send "\r"
+		}
+	}
+   sleep 250
+}
+
+send "end\r"
+expect $global_prompt {loggedline $loginsession "TASKS ARE FINISHED\n"}
+
+# turn off logging
+log_file
+}
+####################SCRIPT END####################

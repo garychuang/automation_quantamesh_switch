@@ -1,0 +1,112 @@
+#!/usr/bin/expect
+#
+# Apply to: QuantaMesh Network OS (QNOS)
+# Build by: QCTUS SWFAE
+# Bulld date: 2016/04/01
+# Purpose: This example is common procedures.
+
+
+# Slow down as console terminal reponse is sloppy 
+set force_slow 1
+if {$force_slow} {
+	set send_slow {1 .07}
+    proc send {arg} {
+		sleep .3
+		exp_send -s -- $arg
+		sleep .3
+	}
+    proc send_user {arg} {
+		sleep .3
+		exp_send_user -s -- $arg
+		sleep .3
+	}
+}
+
+# Log message
+proc loggedline {session text1} {
+	set htime "\[[clock format [clock seconds] -format {%b-%d-%y %H:%M:%S} -timezone :localtime]\]"
+	send_user "$htime SESSION $session: $text1"
+}
+
+# Auto login (console) and reset to global mode
+proc con_login {user pass session} {
+	for {set nRetry 1} {$nRetry <= 5} {incr nRetry 1} {
+		expect {
+			-re "(#|>)$" {
+				send "\r"
+				break
+			}	
+			"assword:" {
+				send "$pass"
+			}
+			"User:" {
+				send "$user\r"
+				exp_continue
+			} timeout {
+				loggedline $session "TIMEOUT! FAILED TO RUN SCRIPT. ABORTED!\n"
+				exit
+			}
+		}
+	}
+
+	if {$nRetry > 5} {
+		loggedline $session "PASSWORD FAILED [expr {$nRetry-1}] TIMES\n"
+#		send_log "SESSION $session: PASSWORD FAILED [expr {$nRetry-1}] TIMES\n"
+		exit
+	} else {
+		loggedline $session "LOGIN SUCCESS\n"
+	}
+# reset to global mode#
+expect {
+	-re ">$" { 
+		send "enable\r" 
+		send "$enablepass" 
+		}
+	-re "#$" { 
+		send "end\r" 
+		} timeout {
+				loggedline $session "TIMEOUT! FAILED TO RUN SCRIPT. ABORTED!\n"
+				exit
+			}
+	}
+}
+
+# Auto login (telnet or ssh) and reset to global mode
+proc vty_login {user pass session} {
+	for {set nRetry 1} {$nRetry <= 5} {incr nRetry 1} {
+		expect {
+			-re "(#|>)$" {
+				send "\r"
+				break
+			}	
+			"assword:" {
+				send "$pass"
+			}
+			"(yes/no)" {
+				send "yes\r"
+				exp_continue
+			}
+		}
+	}
+
+	if {$nRetry > 5} {
+		loggedline $session "PASSWORD FAILED [expr {$nRetry-1}] TIMES\n"
+#		send_log "SESSION $con: PASSWORD FAILED [expr {$nRetry-1}] TIMES\n"
+		exit
+	} else {
+		loggedline $session "LOGIN SUCCESS\n"
+	}
+# reset to global mode#
+expect {
+	-re ">$" { 
+		send "enable\r" 
+		send "$enablepass" 
+		}
+	-re "#$" { 
+		send "end\r" 
+		} timeout {
+				loggedline $session "TIMEOUT! FAILED TO RUN SCRIPT. ABORTED!\n"
+				exit
+			}
+	}
+}

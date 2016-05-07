@@ -1,0 +1,84 @@
+#!/usr/bin/expect
+#
+# Apply to: QuantaMesh Network OS (QNOS)
+# Build by: QCTUS SWFAE
+# Bulld date: 2016/04/01
+# Purpose: This example access switch via console and download script and apply to running-config
+# 
+
+
+# initial vars (modify it to fit your environment)
+
+set term_server_addr ts-01
+#set conport {2016}
+set conport {2005 2007 2012 2013 2014 2015 2016}
+# the script file name in server is $SWITCH.initial.scr (e.g., ly4a.initial.scr)
+#set SWITCH {ly6-2}
+set SWITCH {ly4a lb9 ly2 ly8-1 ly8-2 ly6-1 ly6-2}
+set tftpaddr 10.90.90.254
+set username "admin"
+set password "\r"
+set enablepass "\r"
+set PATH "/tmp/"
+
+# vars
+set global_prompt ") #$"
+set config_prompt "Config)#$"
+
+####################SCRIPT START####################
+
+for {set i 0} {$i < [llength $conport]} {incr i 1} {
+# enable logging to file and disable logging stdout
+set loginsession [lindex $conport $i]
+log_file -noappend $PATH/console_$loginsession.log
+log_user 0
+
+# put source file in same directory
+source common.exp
+
+####################AUTO LOGIN START####################
+
+spawn telnet $term_server_addr $loginsession
+# verify terminal server connected
+expect -re "Connected to port*" {
+	send "\r"
+}
+
+con_login $username $password $loginsession
+
+####################AUTO LOGIN END####################
+
+expect $global_prompt {send "copy tftp://$tftpaddr/[lindex $SWITCH $i].initial.scr script [lindex $SWITCH $i].initial.scr\r"}
+expect "want to start? (y/n)" {send "y"}
+sleep 1
+expect {
+	"failed!" {
+		$loggedline $loginsession "download failed! ABORTED!\n"
+		exit
+		}
+	"successfully." {
+		$loggedline $loginsession: "download succeed!\n"
+		}
+}
+
+expect $global_prompt {send "script apply [lindex $SWITCH $i].initial.scr\r"}
+expect "apply the configuration script? (y/n)" {send "y"}
+expect "save them now? (y/n)" {send "y"}
+sleep 3
+expect {
+	"applied" {
+		$loggedline $loginsession: "script is applied\n"
+	} timeout {
+		$loggedline $loginsession: "timeout and exit\n"
+		exit
+	}
+}
+
+expect $global_prompt {send "copy running-config startup-config\r"}
+expect "Configuration Saved!" {$loggedline $loginsession "configuration is saved.\n"}
+expect $global_prompt {$loggedline $loginsession "TASKS ARE FINISHED.\n"}
+
+# turn off logging
+log_file
+}
+####################SCRIPT END####################

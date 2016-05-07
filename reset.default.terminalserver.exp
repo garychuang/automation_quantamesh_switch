@@ -1,0 +1,70 @@
+#!/usr/bin/expect
+#
+# Apply to: QuantaMesh Network OS (QNOS)
+# Build by: QCTUS SWFAE
+# Bulld date: 2016/04/01
+# Purpose: This example access switch via console and reset switches back to default.
+# 
+
+
+# initial vars (modify it to fit your environment)
+set term_server_addr ts-01
+set conport {2005 2007 2012 2013 2014 2015 2016} 
+set username "admin"
+set password "\r"
+set enablepass "\r"
+set PATH "/tmp/"
+
+# vars
+set global_prompt ") #$"
+set config_prompt "Config)#$"
+
+####################SCRIPT START####################
+
+for {set i 0} {$i < [llength $conport]} {incr i 1} {
+# enable logging to file and disable logging stdout
+set loginsession [lindex $conport $i]
+log_file -noappend $PATH/console_$loginsession.log
+log_user 0
+
+# put source file in same directory
+source common.exp
+
+####################AUTO LOGIN START####################
+
+spawn telnet $term_server_addr $loginsession
+# verify console server connected
+expect -re "Connected to port*" {
+	send "\r"
+}
+
+con_login $username $password $loginsession
+
+####################AUTO LOGIN END####################
+
+expect $global_prompt {send "delete config all\r"}
+expect "(y/n)"  {send "y\r"}
+expect "successfully." {$loggedline $loginsession "config files are deleted.\n"}
+expect $global_prompt {send "reload warm\r"}
+expect {
+	"reset the system? (y/n)" {
+		send "y"
+		}
+	"save them now? (y/n)" {
+		send "n"
+		exp_continue
+		}
+}
+# soft reload approximately takes 20~30 seconds.
+sleep 8
+expect "Reference platform resetting" 
+sleep 25
+expect "started"
+sleep 3
+expect "User:" {$loggedline $loginsession "reset default is completed.\n"}
+$loggedline $loginsession "TASKS ARE FINISHED.\n"
+
+# turn off logging
+log_file
+}
+####################SCRIPT END####################
