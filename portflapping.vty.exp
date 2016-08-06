@@ -2,13 +2,12 @@
 #
 # Apply to: QuantaMesh Network OS (QNOS)
 # Build by: QCTUS SWFAE
-# Bulld date: 2016/05/02
 # Purpose: This example access switch via SSH or Telnet and flapping port every x seconds.
 #
 
 
 # initial vars (modify it to fit your environment)
-set switch_addr {10.90.90.154}
+set switch_addr {10.90.90.134}
 set username "admin"
 set password "\r"
 set enablepass "\r"
@@ -23,48 +22,48 @@ set config_prompt "Config)#$"
 ####################SCRIPT START####################
 
 for {set i 0} {$i < [llength $switch_addr]} {incr i 1} {
-# enable logging to file and disable logging stdout (log_user 0)
-set loginsession [lindex $switch_addr $i]
-log_file -noappend $PATH/session_$loginsession.log
-log_user 1
-
-# put source file in same directory
-source common.exp
-
+	# enable logging to file and disable logging stdout (log_user 0)
+	set loginsession [lindex $switch_addr $i]
+	log_file -noappend $PATH/session_$loginsession.log
+	log_user 0
+	
+	# put source file in same directory
+	source common.exp
+	
 ####################AUTO LOGIN START####################
-
-spawn ssh $username@$switch_addr
-
-vty_login $username $password $loginsession
-
+	spawn ssh $username@$switch_addr
+	
+	vty_login $username $password $enablepass $loginsession
+	
 ####################AUTO LOGIN END####################
-
-loggedline $loginsession "TASKS START\n" 
-send "configure\r"
-expect $config_prompt
-
-set commands {"shutdown" "mtu 9216" "udld port" "no shutdown"}
-
-send "interface 0/15\r"
-set true 1
-while { $true } {
-	for {set j 0} {$j < [llength $commands]} { incr j 1} {
-		set command_apply [lindex $commands $j]
-		expect {
-			"(Interface 0/15)#" {
-				send "$command_apply\r"
-				} timeout {
+	loggedline $loginsession "TASKS START\n" 
+	send "configure\r"
+	expect $config_prompt
+	
+	set commands {"shutdown" "mtu 9216" "udld port" "no shutdown"}
+	
+	send "interface 0/15\r"
+	set true 1
+	while { $true } {
+		for {set j 0} {$j < [llength $commands]} { incr j 1} {
+			set command_apply [lindex $commands $j]
+			expect {
+				"(Interface 0/15)#" {
+					send "$command_apply\r"
+					cmd_verify_exp $loginsession
+					} 
+				timeout {
 					exit
 				}
+			}
+			sleep .5
 		}
-		sleep .5
 	}
-}
-
-send "end\r"
-expect $global_prompt {loggedline $loginsession "TASKS ARE FINISHED.\n"}
-
-# turn off logging
-log_file
+	
+	send "end\r"
+	expect $global_prompt {loggedline $loginsession "TASKS ARE FINISHED.\n"}
+	
+	# turn off logging
+	log_file
 }
 ####################SCRIPT END####################

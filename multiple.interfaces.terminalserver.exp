@@ -2,7 +2,6 @@
 #
 # Apply to: QuantaMesh Network OS (QNOS)
 # Build by: QCTUS SWFAE
-# Bulld date: 2016/04/01
 # Purpose: This example access switch via console and apply commands to multiple interfaces one by one.
 # 
 
@@ -24,45 +23,46 @@ set config_prompt "Config)#$"
 ####################SCRIPT START####################
 
 for {set i 0} {$i < [llength $conport]} {incr i 1} {
-# enable logging to file and disable logging stdout (log_user 0)
-set loginsession [lindex $conport $i]
-log_file -noappend $PATH/session_$loginsession.log
-log_user 0
-
-# put source file in same directory
-source common.exp
-
-####################AUTO LOGIN START####################
-
-spawn telnet $term_server_addr $loginsession
-# verify terminal server connected
-expect -re "Connected to port*" {
-	send "\r"
-}
-
-con_login $username $password $loginsession
-
+	# enable logging to file and disable logging stdout (log_user 0)
+	set loginsession [lindex $conport $i]
+	log_file -noappend $PATH/session_$loginsession.log
+	log_user 0
+	
+	# put source file in same directory
+	source common.exp
+	
+####################AUTO LOGIN START####################	
+	spawn telnet $term_server_addr $loginsession
+	# verify terminal server connected
+	expect	{
+		-re "Connected to port*" { send "\r" }
+		timeout  { loggedline $loginsession "FAILED TO CONNECT TERMINAL SERVER! ABORTED!\n" ; exit }
+	}
+	
+	con_login $username $password $enablepass $loginsession
+	
 ####################AUTO LOGIN END####################
-
-send "configure\r"
-expect $config_prompt
-for {set i 0} {$i < [llength $interface_index]} {incr i 1} {
-	send "Interface 0/[lindex $interface_index $i]\r"
-	expect {
-		"Interface 0/[lindex $interface_index $i])#" {
-			send "mtu 9216\r"
-			} timeout {
+	send "configure\r"
+	expect $config_prompt
+	for {set i 0} {$i < [llength $interface_index]} {incr i 1} {
+		send "Interface 0/[lindex $interface_index $i]\r"
+		expect {
+			"Interface 0/[lindex $interface_index $i])#" {
+				send "mtu 9216\r"
+				cmd_verify_exp $loginsession
+				} 
+			timeout {
 				loggedline $loginsession "FAILED TO RUN SCRIPT. ABORTED!\n"
 				exit
 			}
 		}
 	}
-send "end\r"
-expect $global_prompt {send "copy running-config startup-config\r"}
-expect "Configuration Saved!" {loggedline $loginsession "configuration is saved.\n"}
-expect $global_prompt {loggedline $loginsession "TASKS ARE FINISHED.\n"}
-	
-# turn off logging
-log_file
+	send "end\r"
+	expect $global_prompt {send "copy running-config startup-config\r"}
+	expect "Configuration Saved!" {loggedline $loginsession "configuration is saved.\n"}
+	expect $global_prompt {loggedline $loginsession "TASKS ARE FINISHED.\n"}
+		
+	# turn off logging
+	log_file
 }
 ####################SCRIPT END####################

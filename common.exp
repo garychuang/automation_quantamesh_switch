@@ -2,25 +2,31 @@
 #
 # Apply to: QuantaMesh Network OS (QNOS)
 # Build by: QCTUS SWFAE
-# Bulld date: 2016/04/01
 # Purpose: This example is common procedures.
 
 
-# Slow down as console terminal reponse is sloppy 
+# Slow down as console terminal reponse is sloppy
+# send_slow, The variable is a list of two numbers. The first is the number of 
+# characters to send at a time. The second number is a time to pause 
+# after each group of characters is sent.
 set force_slow 1
 if {$force_slow} {
-	set send_slow {1 .07}
+	set send_slow {2 .05}
     proc send {arg} {
-		sleep .3
+		sleep .2
 		exp_send -s -- $arg
-		sleep .3
+		sleep .2
 	}
     proc send_user {arg} {
-		sleep .3
+		sleep .1
 		exp_send_user -s -- $arg
-		sleep .3
+		sleep .1
 	}
 }
+
+set timeout 30
+
+set simpletime "[clock format [clock seconds] -format {%b-%d-%H-%M} -timezone :localtime]"
 
 # Log message
 proc loggedline {session text1} {
@@ -29,11 +35,16 @@ proc loggedline {session text1} {
 }
 
 # Auto login (console) and reset to global mode
-proc con_login {user pass session} {
+proc con_login {user pass enablepass session} {
+	set NotGlobalMode ")#$"
+	
 	for {set nRetry 1} {$nRetry <= 5} {incr nRetry 1} {
 		expect {
-			-re "(#|>)$" {
-				send "\r"
+			timeout {
+				loggedline $session "TIMEOUT! FAILED TO RUN SCRIPT. ABORTED!\n"
+				exit
+			}
+			-notransfer -re "(#|>)$" {
 				break
 			}	
 			"assword:" {
@@ -42,10 +53,7 @@ proc con_login {user pass session} {
 			"User:" {
 				send "$user\r"
 				exp_continue
-			} timeout {
-				loggedline $session "TIMEOUT! FAILED TO RUN SCRIPT. ABORTED!\n"
-				exit
-			}
+			} 
 		}
 	}
 
@@ -56,27 +64,43 @@ proc con_login {user pass session} {
 	} else {
 		loggedline $session "LOGIN SUCCESS\n"
 	}
-# reset to global mode#
-expect {
-	-re ">$" { 
-		send "enable\r" 
-		send "$enablepass" 
+
+# reset to global mode
+	expect {
+		timeout {
+			loggedline $session "TIMEOUT! FAILED TO RUN SCRIPT. ABORTED!\n"
+			exit
 		}
-	-re "#$" { 
-		send "end\r" 
-		} timeout {
-				loggedline $session "TIMEOUT! FAILED TO RUN SCRIPT. ABORTED!\n"
-				exit
-			}
+		"Incorrect Password" {
+			loggedline $session "PASSWORD FAILED! ABORTED!\n"
+			exit
+		}
+		-notransfer ") #$" {
+			# loggedline $session "reset to global mode\n"
+		}
+		-re ">$" {
+			send "enable\r"
+			expect "assword:" { send "$enablepass" }
+			exp_continue
+		}
+		$NotGlobalMode { 
+			send "end\r\n"
+			exp_continue
+		}
 	}
 }
 
 # Auto login (telnet or ssh) and reset to global mode
-proc vty_login {user pass session} {
+proc vty_login {user pass enablepass session} {
+	set NotGlobalMode ")#$"
+
 	for {set nRetry 1} {$nRetry <= 5} {incr nRetry 1} {
 		expect {
-			-re "(#|>)$" {
-				send "\r"
+			timeout {
+				loggedline $session "TIMEOUT! FAILED TO RUN SCRIPT. ABORTED!\n"
+				exit
+			}
+			-notransfer -re "(#|>)$" {
 				break
 			}	
 			"assword:" {
@@ -97,16 +121,117 @@ proc vty_login {user pass session} {
 		loggedline $session "LOGIN SUCCESS\n"
 	}
 # reset to global mode#
-expect {
-	-re ">$" { 
-		send "enable\r" 
-		send "$enablepass" 
+	expect {
+		timeout {
+			loggedline $session "TIMEOUT! FAILED TO RUN SCRIPT. ABORTED!\n"
+			exit
 		}
-	-re "#$" { 
-		send "end\r" 
-		} timeout {
-				loggedline $session "TIMEOUT! FAILED TO RUN SCRIPT. ABORTED!\n"
+		"Incorrect Password" {
+			loggedline $session "PASSWORD FAILED! ABORTED!\n"
+			exit
+		}
+		-notransfer ") #$" {
+			# loggedline $session "reset to global mode\n"
+		}
+		-re ">$" {
+			send "enable\r"
+			expect "assword:" { send "$enablepass" }
+			exp_continue
+		}
+		$NotGlobalMode { 
+			send "end\r"
+			exp_continue
+		}
+	}
+}
+
+# Auto login (telnet or ssh) and reset to global mode
+proc linux_login {user pass session} {
+
+	for {set nRetry 1} {$nRetry <= 5} {incr nRetry 1} {
+		expect {
+			timeout {
+				loggedline $session "LOGIN TIMEOUT! FAILED TO RUN SCRIPT. ABORTED!\n"
 				exit
 			}
+			-notransfer "\$ $" {
+				break
+			}
+			"assword: " {
+				send "$pass\r"
+			}
+			"login: $" {
+				send "$user\r"
+				exp_continue
+			}
+		}
 	}
+
+	if {$nRetry > 5} {
+		loggedline $session "PASSWORD FAILED [expr {$nRetry-1}] TIMES\n"
+#		send_log "SESSION $con: PASSWORD FAILED [expr {$nRetry-1}] TIMES\n"
+		exit
+	} else {
+		loggedline $session "LOGIN SUCCESS\n"
+	}
+
+}
+
+proc cmd_verify_exp { session } {
+	expect {
+		timeout {
+			loggedline $session "TIMEOUT! FAILED TO RUN SCRIPT. ABORTED!\n"
+			exit
+			}
+		 -ex "^" {
+			loggedline $session "INVALID COMMAND! ABORTED!\n"
+			exit
+			}
+		"Incomplete command" {
+			loggedline $session "INCOMPLETE COMMAND! ABORTED!\n"
+			exit
+			}
+		"not support" {
+			loggedline $session "NOT SUPPORT COMMAND! ABORTED!\n"
+			exit
+			}	
+		"Ambiguous" {
+			loggedline $session "AMBIGUOUS COMMAND! ABORTED!\n"
+			exit
+			}
+		-re ">$" {
+			loggedline $session "NOT IN PRIVILEDGED MODE! ABORTED!\n"
+			exit
+			}
+		-notransfer ") #$" {
+			# loggedline $session "reset to global mode\n"
+			}
+		-notransfer ")#$" {
+			}
+	}
+}	
+
+proc sudo_pass {user pass session} {
+
+	for {set nRetry 1} {$nRetry <= 5} {incr nRetry 1} {
+		set timeout -1
+		expect {
+			timeout {
+				loggedline $session "sudo TIMEOUT! FAILED TO RUN SCRIPT. ABORTED!\n"
+				exit
+			}
+			-notransfer "\$ $" {
+				break
+			}
+			"password" {
+				send "$pass\r"
+			}
+		}
+	}
+
+	if {$nRetry > 5} {
+		loggedline $session "PASSWORD FAILED [expr {$nRetry-1}] TIMES\n"
+#		send_log "SESSION $con: PASSWORD FAILED [expr {$nRetry-1}] TIMES\n"
+		exit
+	} 
 }

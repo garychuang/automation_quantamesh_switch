@@ -2,7 +2,6 @@
 #
 # Apply to: QuantaMesh Network OS (QNOS)
 # Build by: QCTUS SWFAE
-# Bulld date: 2016/01/15
 # Purpose: This example access switch via console and flapping port every x seconds.
 # 
 
@@ -22,52 +21,54 @@ set config_prompt "Config)#$"
 ####################SCRIPT START####################
 
 for {set i 0} {$i < [llength $conport]} {incr i 1} {
-# enable logging to file and disable logging stdout
-set loginsession [lindex $conport $i]
-log_file -noappend $PATH/console_$loginsession.log
-log_user 1
-
-# put source file in same directory
-source common.exp
-
+	# enable logging to file and disable logging stdout
+	set loginsession [lindex $conport $i]
+	log_file -noappend $PATH/console_$loginsession.log
+	log_user 1
+	
+	# put source file in same directory
+	source common.exp
+	
 ####################AUTO LOGIN START####################
-
-spawn telnet $term_server_addr $loginsession
-# verify terminal server connected
-expect -re "Connected to port*" {
-	send "\r"
-}
-
-con_login $username $password $loginsession
-
+	spawn telnet $term_server_addr $loginsession
+	# verify terminal server connected
+	expect	{
+		-re "Connected to port*" { send "\r" }
+		timeout  { loggedline $loginsession "FAILED TO CONNECT TERMINAL SERVER! ABORTED!\n" ; exit }
+	}
+	
+	con_login $username $password $enablepass $loginsession
+	
 ####################AUTO LOGIN END####################
-
-loggedline $loginsession "TASKS START\n" 
-send "configure\r"
-expect $config_prompt
-
-set commands {"shutdown" "mtu 9216" "udld port" "no shutdown"}
-
-send "interface 0/15\r"
-set true 1
-while { $true } {
-	for {set j 0} {$j < [llength $commands]} { incr j 1} {
-		set command_apply [lindex $commands $j]
-		expect {
-			"(Interface 0/15)#" {
-				send "$command_apply\r"
-				} timeout {
+	loggedline $loginsession "TASKS START\n" 
+	send "configure\r"
+	expect $config_prompt
+	
+	set commands {"shutdown" "mtu 9216" "udld port" "no shutdown"}
+	
+	send "interface 0/15\r"
+	set true 1
+	while { $true } {
+		for {set j 0} {$j < [llength $commands]} { incr j 1} {
+			set command_apply [lindex $commands $j]
+			expect {
+				"(Interface 0/15)#" {
+					send "$command_apply\r"
+					cmd_verify_exp $loginsession
+					} 
+				timeout {
+					loggedline $loginsession "FAILED TO RUN SCRIPT. ABORTED!\n"
 					exit
 				}
+			}
+			sleep .5
 		}
-		sleep .5
 	}
-}
-
-send "end\r"
-expect $global_prompt {loggedline $loginsession "TASKS ARE FINISHED.\n"}
-
-# turn off logging
-log_file
+	
+	send "end\r"
+	expect $global_prompt {loggedline $loginsession "TASKS ARE FINISHED.\n"}
+	
+	# turn off logging
+	log_file
 }
 ####################SCRIPT END####################
