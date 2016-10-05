@@ -9,9 +9,8 @@
 # initial vars (modify it to fit your environment)
 set term_server_addr ts-01
 set conport {2005 2007 2010 2011 2012 2013 2014 2015 2016}
-# the script file name in server is $SWITCH.initial.scr (e.g., ly4a.initial.scr)
-#set SWITCH {ly6-2}
-set SWITCH {ly4a lb9 ly2 ly2r-1 ly2r-2 ly8-1 ly8-2 ly6-1 ly6-2}
+# the script file name is $SWITCH.initial.scr (e.g., ly4a.initial.scr)
+set SWITCH {ly4a lb9 ly2 leaf03 leaf04 leaf01 leaf02 spine01 spine02}
 set tftpaddr 10.90.90.254
 set username "admin"
 set password "\r"
@@ -22,19 +21,21 @@ set PATH "/tmp/"
 set global_prompt ") #$"
 set config_prompt "Config)#$"
 
+# put source file in same directory
+source common.exp
+
+log_file -noappend $PATH/load.script.terminalserver.log
+log_user 1
+
 ####################SCRIPT START####################
 
 for {set i 0} {$i < [llength $conport]} {incr i 1} {
 	# enable logging to file and disable logging stdout
 	set loginsession [lindex $conport $i]
-	log_file -noappend $PATH/session_$loginsession.log
-	log_user 0
-	
-	# put source file in same directory
-	source common.exp
 	
 ####################AUTO LOGIN START####################
 	spawn telnet $term_server_addr $loginsession
+	set "con[lindex $conport $i]" $spawn_id
 	# verify terminal server connected
 	expect	{
 		-re "Connected to port*" { send "\r" }
@@ -44,6 +45,7 @@ for {set i 0} {$i < [llength $conport]} {incr i 1} {
 	con_login $username $password $enablepass $loginsession
 	
 ####################AUTO LOGIN END####################
+#        set spawn_id [set "con[lindex $conport $i]"]
 	expect $global_prompt {send "copy tftp://$tftpaddr/[lindex $SWITCH $i].initial.scr script [lindex $SWITCH $i].initial.scr\r"}
 	expect "want to start? (y/n)" {send "y"}
 	sleep 1
@@ -59,8 +61,6 @@ for {set i 0} {$i < [llength $conport]} {incr i 1} {
 	
 	expect $global_prompt {send "script apply [lindex $SWITCH $i].initial.scr\r"}
 	expect "apply the configuration script? (y/n)" {send "y"}
-	expect "save them now? (y/n)" {send "y"}
-	sleep 3
 	expect {
 		timeout {
 			loggedline $loginsession: "TIMEOUT! ABORTED!\n"
@@ -69,13 +69,24 @@ for {set i 0} {$i < [llength $conport]} {incr i 1} {
 		"applied" {
 			loggedline $loginsession: "script is applied\n"
 		}
+		"save them now? (y/n)" {
+			send "n"
+		}
 	}
-
+	send "\r\n"
 	expect $global_prompt {send "copy running-config startup-config\r"}
-	expect "Configuration Saved!" {loggedline $loginsession "configuration is saved.\n"}
-	expect $global_prompt {loggedline $loginsession "TASKS ARE FINISHED.\n"}
+	expect {
+		timeout {
+			loggedline $loginsession: "TIMEOUT! ABORTED!\n"
+			exit
+		}
+		"Configuration Saved!" {loggedline $loginsession "configuration is saved.\n"}
+		"(y/n)" {send "y"}
+	}
+}
+	expect $global_prompt {loggedline "TASKS ARE FINISHED.\n"}
 	
 	# turn off logging
 	log_file
-}
+
 ####################SCRIPT END####################
