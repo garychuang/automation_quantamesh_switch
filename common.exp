@@ -1,6 +1,6 @@
 #!/usr/bin/expect
 #
-# Apply to: QuantaMesh Network OS (QNOS)
+# Apply to: QuantaMesh Network OS (QNOS) and Cumulus Linux
 # Build by: QCTUS SWFAE
 # Purpose: This example is common procedures.
 
@@ -11,7 +11,7 @@
 # after each group of characters is sent.
 set force_slow 1
 if {$force_slow} {
-	set send_slow {2 .05}
+	set send_slow {2 .07}
     proc send {arg} {
 		sleep .2
 		exp_send -s -- $arg
@@ -24,7 +24,7 @@ if {$force_slow} {
 	}
 }
 
-set timeout 30
+set timeout 10
 
 set simpletime "[clock format [clock seconds] -format {%b-%d-%H-%M} -timezone :localtime]"
 
@@ -178,6 +178,7 @@ proc linux_login {user pass session} {
 }
 
 proc cmd_verify_exp { session } {
+	send "\r\n"
 	expect {
 		timeout {
 			loggedline $session "TIMEOUT! FAILED TO RUN SCRIPT. ABORTED!\n"
